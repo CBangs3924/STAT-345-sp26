@@ -1,0 +1,395 @@
+---
+title: "Minnesota Timberwolves shot chart"
+output:
+  word_document: default
+  html_document: default
+date: "2026-03-30"
+author: "Connor Bangs"
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+library(hoopR)
+library(dplyr)
+library(tidyverse)
+
+seasons_to_pull <- 2016:2025
+
+pbp <- load_nba_pbp(seasons = seasons_to_pull) # this is pulling the play by play data for all of the seasons 
+wolves_shots <- pbp %>% # this is getting all of the Timberwolves shots with all of the different variables that are not needed.
+  filter(shooting_play == TRUE, team_id == 16,!is.na(coordinate_x_raw), !is.na(coordinate_y_raw))
+
+wolves_shots_all <- wolves_shots %>% # This is getting all of the shots from the wolves and selecting the variables to use which are, whether or not this is a scoring play, the coordinates and the season.
+  select(scoring_play, coordinate_x_raw, coordinate_y_raw, season, athlete_id_1)
+
+wolves_made_shots <- wolves_shots_all %>% # This is getting all of the made and missed shots from the wolves to be tracked down and plotted. 
+  mutate(result = if_else(scoring_play == TRUE, "Made", "Missed")
+  ) %>%
+  select(scoring_play, result, coordinate_x_raw, coordinate_y_raw, season, athlete_id_1)
+
+wolves_made_shots <- wolves_made_shots %>% # this is changing the season variable from 2020 to 2020-21 which allows for a more accurate depiction of the seasons.
+  mutate(season_label = paste0(season - 1, "-", substr(as.character(season), 3, 4)))
+```
+
+## Single Plot:
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(dplyr)
+wolves_2021 <- wolves_made_shots %>% #this grabs only the data from the 2020-21 season 
+  filter(season_label == "2020-21")
+
+
+line_width <- 0.4
+
+ggplot()+
+    #court
+    annotate("rect",
+             xmin = -25, xmax = 25, ymin = 0, ymax = 47, fill = "white", color = "black", linewidth = line_width)+
+    
+    #backboard
+    annotate("segment",
+             x = -3, xend = 3, y = 0, yend = 0, fill = "white", color = "black", linewidth = line_width + 0.4)+
+    
+    #hoop
+    annotate("point",
+             x = 0, y = 1.5, color = "orange", size = 3)+
+    
+    #paint
+    annotate("rect", 
+             xmin = -8, xmax = 8, ymin = 0, ymax = 19, fill = NA,color = "black", linewidth = line_width)+
+    
+    #upper semi-circle
+    geom_path(data = data.frame(
+               x = 6 * cos(seq(0, pi, length.out = 100)),
+               y = 19 + 6 * sin(seq(0, pi, length.out = 100))
+             ),
+             aes(x = x, y = y),
+             color = "black", linewidth = line_width, linetype = "dashed")+
+    
+    #lower semi-circle
+    geom_path(data = data.frame(
+               x = 6 * cos(seq(pi, 2*pi, length.out = 100)),
+               y = 19 + 6 * sin(seq(pi, 2*pi, length.out = 100))
+             ),
+             aes(x = x, y = y),
+             color = "black", linewidth = line_width)+
+    
+    #restricted area
+    geom_path(data = data.frame(
+               x = 4 * cos(seq(0, pi, length.out = 100)),
+               y = 1.5 + 4 * sin(seq(0, pi, length.out = 100))
+             ),
+             aes(x = x, y = y),
+             color = "black", linewidth = line_width)+
+    
+    #corner three left
+    annotate("segment",
+             x = -22, xend = -22, y = 0, yend = 14,
+             color = "black", linewidth = line_width)+
+    
+    #corner three right
+    annotate("segment",
+             x = 22, xend = 22, y = 0, yend = 14,
+             color = "black", linewidth = line_width)+
+    
+    #three point arc
+    geom_path(data = data.frame( # had Chatgpt help me with this part because there was a lot of trigonometry which was hard to understand
+               angle = seq(pi - acos(22/23.75), acos(22/23.75), length.out = 200),
+               x     = 23.75 * cos(seq(pi - acos(22/23.75), acos(22/23.75), length.out = 200)),
+               y     = 5 + 23.75 * sin(seq(pi - acos(22/23.75), acos(22/23.75), length.out = 200))
+             ),
+             aes(x = x, y = y),
+             color = "black", linewidth = line_width)+
+    
+    #halfcourt line
+    annotate("segment",
+             x = -25, xend = 25, y = 47, yend = 47,
+             color = "black", linewidth = line_width)+
+    
+    coord_fixed(ratio = 1, xlim = c(-25, 25), ylim = c(0, 47)) +
+
+  #Timberwolves shots
+  #using jitter to move the shots a little bit because the shots are to the foot, and not to the exact inch, to move the shots around so they are not stacked on each other.
+  geom_jitter(data = wolves_2021,
+    aes(x = coordinate_x_raw - 25, #move the shots 
+        y = coordinate_y_raw + 3.75,
+        color = result,
+        shape = result),
+    alpha = 0.3, 
+    size  = 1.25, width = 0.35, height = 0.35)+ # this is how much they were moved from the original foot
+  scale_color_manual(
+    values = c("Made" = "#005083", "Missed" = "lightgrey"),#colors of the Minnesota timberwolves
+    name = "Shot Result"
+  ) +
+  scale_shape_manual(
+    values = c("Made" = 16, "Missed" = 16), #making sure that the shots are filled circles.
+    name = "Shot Result"
+  ) +
+  coord_fixed(ratio = 1, xlim = c(-25, 25), ylim = c(0, 44.95)) + #making sure that the court is the correct size by cutting everything off that is farther than the x and y limits.
+  labs(
+    title    = "Minnesota Timberwolves Shot Chart",
+    subtitle = "2020-21 NBA Season",
+    x = NULL, y = NULL
+  ) +
+  theme_void()
+```
+
+## Many seasons:
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+library(ggplot2)
+
+line_width <- 0.4
+
+ggplot()+
+    #court
+    annotate("rect",
+             xmin = -25, xmax = 25, ymin = 0, ymax = 47, fill = "white", color = "black", linewidth = line_width)+
+    
+    #backboard
+    annotate("segment",
+             x = -3, xend = 3, y = 0, yend = 0, fill = "white", color = "black", linewidth = line_width + 0.4)+
+    
+    #hoop
+    annotate("point",
+             x = 0, y = 1.5, color = "orange", size = 3)+
+    
+    #paint
+    annotate("rect", 
+             xmin = -8, xmax = 8, ymin = 0, ymax = 19, fill = NA,color = "black", linewidth = line_width)+
+    
+    #upper semi-circle
+    geom_path(data = data.frame(
+               x = 6 * cos(seq(0, pi, length.out = 100)),
+               y = 19 + 6 * sin(seq(0, pi, length.out = 100))
+             ),
+             aes(x = x, y = y),
+             color = "black", linewidth = line_width, linetype = "dashed")+
+    
+    #lower semi-circle
+    geom_path(data = data.frame(
+               x = 6 * cos(seq(pi, 2*pi, length.out = 100)),
+               y = 19 + 6 * sin(seq(pi, 2*pi, length.out = 100))
+             ),
+             aes(x = x, y = y),
+             color = "black", linewidth = line_width)+
+    
+    #restricted area
+    geom_path(data = data.frame(
+               x = 4 * cos(seq(0, pi, length.out = 100)),
+               y = 1.5 + 4 * sin(seq(0, pi, length.out = 100))
+             ),
+             aes(x = x, y = y),
+             color = "black", linewidth = line_width)+
+    
+    #corner three left
+    annotate("segment",
+             x = -22, xend = -22, y = 0, yend = 14,
+             color = "black", linewidth = line_width)+
+    
+    #corner three right
+    annotate("segment",
+             x = 22, xend = 22, y = 0, yend = 14,
+             color = "black", linewidth = line_width)+
+    
+    #three point arc
+    geom_path(data = data.frame(
+               angle = seq(pi - acos(22/23.75), acos(22/23.75), length.out = 200),
+               x     = 23.75 * cos(seq(pi - acos(22/23.75), acos(22/23.75), length.out = 200)),
+               y     = 5 + 23.75 * sin(seq(pi - acos(22/23.75), acos(22/23.75), length.out = 200))
+             ),
+             aes(x = x, y = y),
+             color = "black", linewidth = line_width)+
+    
+    #halfcourt line
+    annotate("segment",
+             x = -25, xend = 25, y = 47, yend = 47,
+             color = "black", linewidth = line_width)+
+    
+    coord_fixed(ratio = 1, xlim = c(-25, 25), ylim = c(0, 47)) +
+  #using jitter to move the shots a little bit because the shots are to the foot, and not to the exact inch, to move the shots around so they are not stacked on each other.
+  geom_jitter(
+    data = wolves_made_shots,
+    aes(x = coordinate_x_raw - 25, # Shift x so basket centers at 0
+        y = coordinate_y_raw + 3.5,# shifts y so it fits the 3 point line
+        color = result,
+        shape = result),
+    alpha = 0.3, # Transparency to handle overplotting
+    size  = 0.5,
+    width = 0.25,
+    height = 0.25
+    ) +
+  #facet wrap allows us to have many graphs.
+  facet_wrap(~ season_label, nrow = 2) +
+  
+  # Timberwolves colors
+  scale_color_manual(
+    values = c("Made"   = "#005083",   # Wolves blue
+               "Missed" = "lightgrey"),  # Wolves green
+    name = "Shot Result"
+  ) +
+  scale_shape_manual(
+    values = c("Made"   = 16,   # Filled circle
+               "Missed" = 16),
+    name = "Shot Result"
+  ) +
+  
+  coord_fixed(ratio = 1, xlim = c(-25, 25), ylim = c(0, 44.95)) +
+  
+  labs(
+    title    = "Minnesota Timberwolves Shot Chart",
+    x = NULL,
+    y = NULL
+  ) +
+  
+  theme_void()
+
+```
+
+## Main Findings:
+
+-   Three-point volume has steadily increased
+-   There are more shots in an around the paint than anywhere else on the court
+-   Mid-range shots have been steadily declining
+-   Higher percentage shots are being taken
+-   The 2020 season has less shots than the other seasons
+
+## More Details:
+
+Three-point volume has steadily increased throughout the years. The density of shots in the older shot charts shows that there are more midrange points and points in the paint. But recently there is a higher range of shots beyond the 3-point line. This is clearly shown when you look at the plot from 2016-17 graph compared to the 2024-25 graph.
+
+There are more shots in and around the paint than anywhere else on the court. We can see that the highest percentage of the shots that are being taken throughout the years has continued to be either layups or shots that are close to the hoop. This makes sense because the layup is the highest percentage shot in the game of basketball because of how close they are to the hoop.
+
+Mid-range shots have been steadily declining. We can see in the earlier years, like 2016-17, have less three-point shots and more midrange shots which tend to have more misses. Compared to the 2024-2025 season, which had a lot more threes point shots and shots around the rim.
+
+Higher percentage shots are being taken in the past 6 seasons compared to the 4 before that. There are a lot more missed shots that are deep midrange shot selection compared to 2020 – 2025 seasons which have started taking higher percentage shots like the paint and the three point shot.
+
+2020 has less shots than the other seasons because of the global pandemic, COVID-19. Which influenced the number of games played that season as well as the number of shots and how the game was played. This change was the start of more three-point attempts compared to years prior.
+
+## Anthony Edwards Field Goal Percentage:
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+library(hexbin)
+
+players <- hoopR::load_nba_player_box(season = 2021) %>%
+  filter(team_id == 16)%>%
+  select(athlete_id, athlete_display_name) %>%
+  distinct()
+
+wolves_2021_players <- wolves_2021 %>%
+  left_join(players, by = c("athlete_id_1" = "athlete_id"))
+
+AntMan <- wolves_2021_players %>%
+  filter(athlete_display_name == "Anthony Edwards")
+
+AntMan_fg <- AntMan %>%
+  mutate(
+    made_num = if_else(result == "Made", 1, 0)
+  )
+
+line_width <- 0.4
+
+ggplot()+
+    #court
+    annotate("rect",
+             xmin = -25, xmax = 25, ymin = 0, ymax = 47, fill = "white", color = "black", linewidth = line_width)+
+    
+    #backboard
+    annotate("segment",
+             x = -3, xend = 3, y = 0, yend = 0, fill = "white", color = "black", linewidth = line_width + 0.4)+
+    
+    #hoop
+    annotate("point",
+             x = 0, y = 1.5, color = "orange", size = 3)+
+    
+    #paint
+    annotate("rect", 
+             xmin = -8, xmax = 8, ymin = 0, ymax = 19, fill = NA,color = "black", linewidth = line_width)+
+    
+    #upper semi-circle
+    geom_path(data = data.frame(
+               x = 6 * cos(seq(0, pi, length.out = 100)),
+               y = 19 + 6 * sin(seq(0, pi, length.out = 100))
+             ),
+             aes(x = x, y = y),
+             color = "black", linewidth = line_width, linetype = "dashed")+
+    
+    #lower semi-circle
+    geom_path(data = data.frame(
+               x = 6 * cos(seq(pi, 2*pi, length.out = 100)),
+               y = 19 + 6 * sin(seq(pi, 2*pi, length.out = 100))
+             ),
+             aes(x = x, y = y),
+             color = "black", linewidth = line_width)+
+    
+    #restricted area
+    geom_path(data = data.frame(
+               x = 4 * cos(seq(0, pi, length.out = 100)),
+               y = 1.5 + 4 * sin(seq(0, pi, length.out = 100))
+             ),
+             aes(x = x, y = y),
+             color = "black", linewidth = line_width)+
+    
+    #corner three left
+    annotate("segment",
+             x = -22, xend = -22, y = 0, yend = 14,
+             color = "black", linewidth = line_width)+
+    
+    #corner three right
+    annotate("segment",
+             x = 22, xend = 22, y = 0, yend = 14,
+             color = "black", linewidth = line_width)+
+    
+    #three point arc
+    geom_path(data = data.frame( # had Chatgpt help me with this part because there was a lot of trigonometry which was hard to understand
+               angle = seq(pi - acos(22/23.75), acos(22/23.75), length.out = 200),
+               x     = 23.75 * cos(seq(pi - acos(22/23.75), acos(22/23.75), length.out = 200)),
+               y     = 5 + 23.75 * sin(seq(pi - acos(22/23.75), acos(22/23.75), length.out = 200))
+             ),
+             aes(x = x, y = y),
+             color = "black", linewidth = line_width)+
+    
+    #halfcourt line
+    annotate("segment",
+             x = -25, xend = 25, y = 47, yend = 47,
+             color = "black", linewidth = line_width)+
+    
+    coord_fixed(ratio = 1, xlim = c(-25, 25), ylim = c(0, 47)) +
+
+  #Timberwolves shots
+  #using jitter to move the shots a little bit because the shots are to the foot, and not to the exact inch, to move the shots around so they are not stacked on each other.
+  geom_jitter(
+    data = AntMan_fg,
+    aes(x = coordinate_x_raw - 25, # Shift x so basket centers at 0
+        y = coordinate_y_raw + 3.5,
+        color = made_num
+        ),
+    alpha = 0.3, # Transparency to handle overplotting
+    size  = 1.25,
+    width = 0.35,
+    height = 0.35
+  ) +
+  # Timberwolves colors that show the fg percent of Anthony Edwards shots around the court.
+  scale_color_gradient(
+    low = "lightgrey",
+    high = "#005083",
+    name = "FG%",
+    labels = scales::percent
+  ) +
+  scale_shape_manual(
+    values = c("Made"   = 16,   # Filled circle
+               "Missed" = 16),
+    name = "Shot Result"
+  ) +
+  coord_fixed(ratio = 1, xlim = c(-25, 25), ylim = c(0, 44.95)) + #making sure that the court is the correct   size by cutting everything off that is farther than the x and y limits.
+  labs(
+    title    = "Anthony Edwards shot chart FG%",
+    subtitle = "2020-21 NBA Season",
+    x = NULL, y = NULL
+  ) +
+  theme_void()
+  
+```
+
+This graph shows Anthony Edwards field goal percentage around the court using blue to show 100% and light grey for 0%. Anthony Edwards joined the Timberwolves in 2020, this shows Edward's second year of playing in the NBA, which we can see by the amount of high percentage shots that Edwards took in the paint. Compared to the three which has very low percentage of makes.
