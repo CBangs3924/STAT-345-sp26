@@ -357,7 +357,7 @@ ggplot()+
     
     coord_fixed(ratio = 1, xlim = c(-25, 25), ylim = c(0, 47)) +
 
-  #Timberwolves shots
+  #Anthony Edward's shots
   #using jitter to move the shots a little bit because the shots are to the foot, and not to the exact inch, to move the shots around so they are not stacked on each other.
   geom_jitter(
     data = AntMan_fg,
